@@ -1,13 +1,16 @@
-const bcrypt = require('bcrypt');
-const { createUser } = require('../models/User');
-const { createFarmerProfile } = require('../models/Farmer');
+const { userExists, createUser } = require('../models/User');
+const { farmerProfileExists, createFarmerProfile } = require('../models/Farmer');
 const { formatError } = require('../utils/response');
-
 
 async function registerFarmer(req, res) {
   const { email, password, firstName, lastName, farmName, farmSize, farmType, farmAddress, city, region, country } = req.body;
 
   try {
+
+    if (await userExists(email)) {
+      return res.status(400).json(formatError('User already exists.'));
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
 
@@ -19,7 +22,12 @@ async function registerFarmer(req, res) {
       stakeholderType: 'farmer',
     });
 
-    // Create the farmer profile
+
+    if (await farmerProfileExists(userId)) {
+      return res.status(400).json(formatError('Farmer profile already exists.'));
+    }
+
+
     await createFarmerProfile({
       userId,
       farmName,

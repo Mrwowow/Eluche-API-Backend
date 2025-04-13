@@ -1,13 +1,16 @@
-const bcrypt = require('bcrypt');
-const { createUser } = require('../models/User');
-const { createProcessorProfile } = require('../models/Processor');
+const { userExists, createUser } = require('../models/User');
+const { processorProfileExists, createProcessorProfile } = require('../models/Processor');
 const { formatError } = require('../utils/response');
-
 
 async function registerProcessor(req, res) {
   const { email, password, firstName, lastName, facilityName, processingType, processingCapacity, facilityAddress, city, region, country } = req.body;
 
   try {
+
+    if (await userExists(email)) {
+      return res.status(400).json(formatError('User already exists.'));
+    }
+
     
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -20,7 +23,12 @@ async function registerProcessor(req, res) {
       stakeholderType: 'processor',
     });
 
-    
+
+    if (await processorProfileExists(userId)) {
+      return res.status(400).json(formatError('Processor profile already exists.'));
+    }
+
+
     await createProcessorProfile({
       userId,
       facilityName,
