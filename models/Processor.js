@@ -1,5 +1,13 @@
 const pool = require('../config/db');
 
+
+async function processorProfileExists(userId) {
+  const sql = `SELECT id FROM processor_profiles WHERE user_id = ?`;
+  const [rows] = await pool.query(sql, [userId]);
+  return rows.length > 0; 
+}
+
+
 async function createProcessorProfile(profile) {
   const sql = `INSERT INTO processor_profiles 
                (user_id, facility_name, processing_type, processing_capacity, facility_address, city, region, country) 
@@ -17,4 +25,4 @@ async function createProcessorProfile(profile) {
   return result.insertId; 
 }
 
-module.exports = { createProcessorProfile };
+module.exports = { processorProfileExists, createProcessorProfile };

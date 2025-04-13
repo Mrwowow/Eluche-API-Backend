@@ -1,5 +1,13 @@
 const pool = require('../config/db');
 
+
+async function distributorProfileExists(userId) {
+  const sql = `SELECT id FROM distributor_profiles WHERE user_id = ?`;
+  const [rows] = await pool.query(sql, [userId]);
+  return rows.length > 0; 
+}
+
+
 async function createDistributorProfile(profile) {
   const sql = `INSERT INTO distributor_profiles 
                (user_id, company_name, distribution_type, products_distributed, market_regions, business_address, city, region, country, fleet_size, warehouse_count, warehouse_capacity, seeking_producers, business_license, founded_year) 
@@ -24,4 +32,4 @@ async function createDistributorProfile(profile) {
   return result.insertId; 
 }
 
-module.exports = { createDistributorProfile };
+module.exports = { distributorProfileExists, createDistributorProfile };
