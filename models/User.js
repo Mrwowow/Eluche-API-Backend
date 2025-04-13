@@ -1,5 +1,11 @@
 const pool = require('../config/db');
 
+async function userExists(email) {
+  const sql = `SELECT id FROM users WHERE email = ?`;
+  const [rows] = await pool.query(sql, [email]);
+  return rows.length > 0; 
+}
+
 async function createUser(user) {
   const sql = `INSERT INTO users (email, password_hash, first_name, last_name, stakeholder_type) 
                VALUES (?, ?, ?, ?, ?)`;
@@ -13,4 +19,4 @@ async function createUser(user) {
   return result.insertId; 
 }
 
-module.exports = { createUser };
+module.exports = { userExists, createUser };
