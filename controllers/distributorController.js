@@ -1,6 +1,7 @@
 const { userExists, createUser } = require('../models/User');
 const { distributorProfileExists, createDistributorProfile } = require('../models/Distributor');
 const { formatError } = require('../utils/response');
+const bcrypt = require('bcrypt');
 
 async function registerDistributor(req, res) {
   const { email, password, firstName, lastName, companyName, distributionType, productsDistributed, marketRegions, businessAddress, city, region, country, fleetSize, warehouseCount, warehouseCapacity, seekingProducers, businessLicense, foundedYear } = req.body;

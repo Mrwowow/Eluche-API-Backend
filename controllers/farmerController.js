@@ -1,6 +1,7 @@
 const { userExists, createUser } = require('../models/User');
 const { farmerProfileExists, createFarmerProfile } = require('../models/Farmer');
 const { formatError } = require('../utils/response');
+const bcrypt = require('bcrypt');
 
 async function registerFarmer(req, res) {
   const { email, password, firstName, lastName, farmName, farmSize, farmType, farmAddress, city, region, country } = req.body;

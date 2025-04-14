@@ -1,6 +1,7 @@
 const { userExists, createUser } = require('../models/User');
 const { processorProfileExists, createProcessorProfile } = require('../models/Processor');
 const { formatError } = require('../utils/response');
+const bcrypt = require('bcrypt');
 
 async function registerProcessor(req, res) {
   const { email, password, firstName, lastName, facilityName, processingType, processingCapacity, facilityAddress, city, region, country } = req.body;
