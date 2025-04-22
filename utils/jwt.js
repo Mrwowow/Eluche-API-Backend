@@ -7,7 +7,7 @@ const SECRET_KEY = process.env.JWT_SECRET || 'default_fallback_secret';
  * @returns {string} - Generated JWT token.
  */
 function generateToken(payload) {
-  return jwt.sign(payload, SECRET_KEY, { expiresIn: '1h' }); // Token expires in 1 hour
+  return jwt.sign(payload, SECRET_KEY, { expiresIn: '8h' }); // Token expires in 1 hour
 }
 
 /**
