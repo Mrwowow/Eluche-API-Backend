@@ -1,13 +1,13 @@
 const bcrypt = require('bcrypt');
 
 /**
- * Hash a plain-text password
- * @param {string} password - Plain-text password
- * @returns {Promise<string>} - Hashed password
+ * 
+ * @param {string} password 
+ * @returns {Promise<string>} 
  */
 async function hashPassword(password) {
   try {
-    const saltRounds = 10; // Number of salt rounds
+    const saltRounds = 10; 
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     return hashedPassword;
   } catch (error) {

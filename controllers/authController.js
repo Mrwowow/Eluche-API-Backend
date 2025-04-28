@@ -1,81 +1,94 @@
-const pool = require('../config/db');
-const { generateToken } = require('../utils/jwt'); // JWT utility
-const { hashPassword } = require('../utils/bcrypt'); // Password hashing utility
-const { formatError, formatSuccess } = require('../utils/response'); // Response formatter
+const User = require('../models/User');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { sendVerificationEmail } = require('../utils/emailService');
+const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
 
-// Single Registration Endpoint
 async function register(req, res) {
-  const { email, password, firstName, lastName, role, profileDetails } = req.body;
+    const { email, password, firstName, lastName, stakeholderType, phoneNumber } = req.body;
 
-  try {
-    // 1. Validate Role
-    const roleQuery = 'SELECT id FROM roles WHERE name = ?';
-    const [roleRows] = await pool.query(roleQuery, [role]);
-    if (roleRows.length === 0) {
-      return res.status(400).json(formatError('Invalid role.'));
+    
+    if (!email || !password || !firstName || !lastName || !stakeholderType) {
+        return res.status(400).json({ error: 'Missing required fields.' });
     }
 
-    // 2. Check if User Already Exists
-    const userQuery = 'SELECT id FROM users WHERE email = ?';
-    const [userRows] = await pool.query(userQuery, [email]);
-    if (userRows.length > 0) {
-      return res.status(400).json(formatError('User already exists.'));
+    try {
+        const { userId, verificationToken } = await User.createUser({ 
+            email, password, firstName, lastName, stakeholderType, phoneNumber 
+        });
+
+        await sendVerificationEmail(email, verificationToken);
+
+        res.status(201).json({ success: true, message: 'Registration successful. Please check your email to verify your account.' });
+    } catch (error) {
+        console.error('Error registering user:', error);
+        res.status(500).json({ error: 'Failed to register.' });
     }
-
-    // 3. Hash Password and Create User
-    const passwordHash = await hashPassword(password);
-    const insertUserQuery = `
-      INSERT INTO users (email, password_hash, first_name, last_name, stakeholder_type)
-      VALUES (?, ?, ?, ?, ?)`;
-    const [insertResult] = await pool.query(insertUserQuery, [
-      email,
-      passwordHash,
-      firstName,
-      lastName,
-      role, // Store role in the `stakeholder_type` column
-    ]);
-
-    const userId = insertResult.insertId;
-
-    // 4. Insert Role-Specific Profile
-    if (role === 'farmer') {
-      const { farmName, farmSize, farmType, farmAddress, city, region, country } = profileDetails;
-      const farmerProfileQuery = `
-        INSERT INTO farmer_profiles (user_id, farm_name, farm_size, farm_type, farm_address, city, region, country)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-      await pool.query(farmerProfileQuery, [
-        userId, farmName, farmSize, farmType, farmAddress, city, region, country,
-      ]);
-    } else if (role === 'processor') {
-      const { facilityName, processingType, processingCapacity, facilityAddress, city, region, country } = profileDetails;
-      const processorProfileQuery = `
-        INSERT INTO processor_profiles (user_id, facility_name, processing_type, processing_capacity, facility_address, city, region, country)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-      await pool.query(processorProfileQuery, [
-        userId, facilityName, processingType, processingCapacity, facilityAddress, city, region, country,
-      ]);
-    } else if (role === 'distributor') {
-      const { companyName, distributionType, productsDistributed, marketRegions, businessAddress, city, region, country, fleetSize, warehouseCount, warehouseCapacity, seekingProducers, businessLicense, foundedYear } = profileDetails;
-      const distributorProfileQuery = `
-        INSERT INTO distributor_profiles (user_id, company_name, distribution_type, products_distributed, market_regions, business_address, city, region, country, fleet_size, warehouse_count, warehouse_capacity, seeking_producers, business_license, founded_year)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      await pool.query(distributorProfileQuery, [
-        userId, companyName, distributionType, productsDistributed, marketRegions, businessAddress, city, region, country, fleetSize, warehouseCount, warehouseCapacity, seekingProducers, businessLicense, foundedYear,
-      ]);
-    }
-
-    // 5. Generate JWT Token
-    const token = generateToken({
-      id: userId,
-      email,
-      role,
-    });
-
-    res.status(201).json(formatSuccess('Registration and profile completion successful!', { token }));
-  } catch (error) {
-    console.error(error);
-    res.status(500).json(formatError('Failed to process registration and profile completion.'));
-  }
 }
 
-module.exports = { register };
+async function verifyEmail(req, res) {
+    const token = req.query.token;
+
+    if (!token) {
+        return res.status(400).json({ error: 'Invalid token.' });
+    }
+
+    try {
+        const verified = await User.verifyUser(token);
+
+        if (!verified) {
+            return res.status(400).json({ error: 'Verification failed or token expired.' });
+        }
+
+        res.redirect('/api/login');
+    } catch (error) {
+        console.error('Error verifying email:', error);
+        res.status(500).json({ error: 'Verification failed.' });
+    }
+}
+
+async function login(req, res) {
+    const { email, password } = req.body;
+    
+    const user = await User.getUserByEmail(email);
+
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+        return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    if (!user.is_verified) {
+        return res.status(403).json({ error: 'Email not verified. Please check your inbox.' });
+    }
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+
+    await User.storeRefreshToken(user.id, refreshToken);
+
+    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true });
+    res.json({ success: true, accessToken });
+}
+
+async function refreshToken(req, res) {
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+        return res.status(401).json({ error: 'Refresh token missing.' });
+    }
+
+    try {
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+        const accessToken = generateAccessToken(decoded.userId);
+
+        res.json({ success: true, accessToken });
+    } catch {
+        res.status(403).json({ error: 'Invalid refresh token.' });
+    }
+}
+
+async function logout(req, res) {
+    res.clearCookie('refreshToken');
+    res.json({ success: true, message: 'Logged out successfully.' });
+}
+
+module.exports = { register, verifyEmail, login, refreshToken, logout };
